@@ -28,8 +28,8 @@ module.exports = class ControllerAluno {
       })
 
     } catch (error) {
-      console.log(error)
-      return res.status(500).send({
+   
+      return res.status(error.status || 500).send({
         error: error.errorAluno
       })
     }

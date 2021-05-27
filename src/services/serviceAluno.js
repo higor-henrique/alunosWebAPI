@@ -1,20 +1,21 @@
 const knex = require('../database');
-const validacaoRGA = require('../validators/validacaoRGA');
 const validacaoAluno = require('../validators/validacaoAluno');
+const validacaoParams = require('../validators/validacaoParams');
 module.exports = class serviceAluno {
   static async getAlunoAll(limite = 25, nome = '', pagina = 1) {
     try {
-
+      validacaoParams(limite, nome, pagina);
       if (nome !== '')
-        return await knex('aluno').limit(limite).offset((pagina - 1) * limite).whereRaw(`nome like \'%${nome}%\'`, )
+        return await knex('aluno').limit(limite).offset((pagina - 1) * limite).whereRaw(`nome like \'%${nome}%\'`,)
 
       return await knex('aluno').limit(limite).offset((pagina - 1) * limite)
-      
+
 
     } catch (error) {
       throw {
-        errorAluno: "Erro ao achar aluno",
-        error: error
+        errorAluno: error.errorAluno || "Erro ao achar aluno",
+        error: error,
+        status: error.status
       }
     }
   }
@@ -41,10 +42,11 @@ module.exports = class serviceAluno {
   }
   static async registerAluno(Aluno) {
     try {
+      let rga = validacaoAluno.validacaoRga(Aluno.rga)
+      let nome = validacaoAluno.validacaoNome(Aluno.nome)
+      let situacao = validacaoAluno.validacaoSituacao(Aluno.situacao, 'inativo');
 
-      let rga = validacaoRGA(Aluno.rga)
-      let nome = validacaoAluno(Aluno.nome)
-      return await knex('aluno').insert({ nome, rga, curso: Aluno.curso, situacao: Aluno.situacao })
+      return await knex('aluno').insert({ nome, rga, curso: Aluno.curso, situacao })
 
     } catch (error) {
       throw {
@@ -57,10 +59,13 @@ module.exports = class serviceAluno {
   static async updateAluno(id, Aluno) {
     try {
 
-      let rga = validacaoRGA(Aluno.rga)
-      let nome = validacaoAluno(Aluno.nome)
+      let rga = validacaoAluno.validacaoRga(Aluno.rga)
+      let nome = validacaoAluno.validacaoNome(Aluno.nome)
+
 
       let response = await knex('aluno').where({ id: id })
+
+      let situacao = validacaoAluno.validacaoSituacao(Aluno.situacao, response.situacao);
 
       if (response.length === 0) {
         throw {
@@ -69,12 +74,17 @@ module.exports = class serviceAluno {
         }
       }
 
-      knex('aluno').where({ id: id }).update({
-        nome, rga, curso: Aluno.curso,
-        situacao: Aluno.situacao
-      })
+
+      await knex('aluno')
+        .where({ id: id })
+        .update({
+          nome, rga, curso: Aluno.curso, situacao
+        })
+
+      return await knex('aluno').where({ id: id })
 
     } catch (error) {
+      console.log(error)
       throw {
         errorAluno: error.errorAluno || "Erro ao registrar um aluno",
         error: error,
@@ -96,7 +106,9 @@ module.exports = class serviceAluno {
         }
       }
 
-      return knex('aluno').where({ id: id }).del()
+      await knex('aluno').where({ id: id }).del()
+
+      return response;
 
     } catch (error) {
       throw {
